@@ -1,14 +1,16 @@
 from typing import Callable, List, Optional, Type, Union
-
 import torch
 import torch.nn as nn
-
 from torch import Tensor
 import numpy as np
-
 from torchvision import transforms
-
 from PIL import Image
+import logging
+import os
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def conv3x3(
@@ -303,20 +305,226 @@ class Classifier(nn.Module):
         crop = transforms.CenterCrop((224, 224))
         to_tensor = transforms.ToTensor()
         normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        
         img = resize(img)
         img = crop(img)
         img = to_tensor(img)
         img = normalize(img)
         return img
 
+    def predict(self, image_path):
+        """
+        Predict class for image file.
+        
+        Args:
+            image_path (str): Path to image file
+            
+        Returns:
+            tuple: (class_id, confidence, probabilities)
+        """
+        try:
+            # Load and preprocess image
+            image = Image.open(image_path).convert('RGB')
+            # Use the exact preprocessing from the provided code
+            input_tensor = self.preprocess_numpy(image).unsqueeze(0)
+            
+            # Set model to evaluation mode
+            self.eval()
+            
+            # Perform inference
+            with torch.no_grad():
+                outputs = self(input_tensor)
+                probabilities = torch.nn.functional.softmax(outputs, dim=1)
+                
+                # Get prediction
+                confidence, predicted = torch.max(probabilities, 1)
+                class_id = predicted.item()
+                confidence_score = confidence.item()
+                
+                return class_id, confidence_score, probabilities.numpy()[0]
+                
+        except Exception as e:
+            logger.error(f"Error during prediction: {str(e)}")
+            raise
 
-if __name__ == "__main__":
-    mtailor = Classifier(BasicBlock, [2, 2, 2, 2])
-    mtailor.load_state_dict(torch.load("./resnet18-f37072fd.pth"))
-    mtailor.eval()
+
+# Create the ImageNetClassifier class for backward compatibility
+class ImageNetClassifier(Classifier):
+    """Alias for Classifier to maintain compatibility with existing code."""
     
-    img = Image.open("./n01667114_mud_turtle.JPEG")
-    inp = mtailor.preprocess_numpy(img).unsqueeze(0) 
-    res = mtailor.forward(inp)
+    def __init__(self, num_classes=1000):
+        """Initialize with ResNet18 architecture (BasicBlock, [2, 2, 2, 2])."""
+        super().__init__(
+            block=BasicBlock,
+            layers=[2, 2, 2, 2],
+            num_classes=num_classes
+        )
 
-    print(torch.argmax(res))
+
+def load_model(weights_path="models/pytorch_model_weights.pth"):
+    """
+    Load pretrained model from weights file.
+    
+    Args:
+        weights_path (str): Path to model weights
+        
+    Returns:
+        ImageNetClassifier: Loaded model
+    """
+    try:
+        model = ImageNetClassifier()
+        
+        # Load weights
+        if torch.cuda.is_available():
+            state_dict = torch.load(weights_path)
+        else:
+            state_dict = torch.load(weights_path, map_location='cpu')
+        
+        # The weights might be wrapped in a 'state_dict' key or be direct
+        if 'state_dict' in state_dict:
+            state_dict = state_dict['state_dict']
+        elif 'model' in state_dict:
+            state_dict = state_dict['model']
+        
+        # Load the state dict
+        model.load_state_dict(state_dict, strict=False)
+        model.eval()
+        
+        logger.info(f"Model loaded successfully from {weights_path}")
+        return model
+        
+    except Exception as e:
+        logger.error(f"Error loading model: {str(e)}")
+        raise
+
+
+def download_model_weights(download_path="models/pytorch_model_weights.pth", force_download=False):
+    """
+    Download model weights from Dropbox if they don't exist.
+    
+    Args:
+        download_path (str): Path to save the weights
+        force_download (bool): Force download even if file exists
+        
+    Returns:
+        str: Path to the downloaded weights file
+    """
+    import urllib.request
+    import os
+    from pathlib import Path
+    
+    # Create directory if it doesn't exist
+    Path(download_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    # Skip download if file exists and not forcing
+    if os.path.exists(download_path) and not force_download:
+        file_size = os.path.getsize(download_path)
+        if file_size > 1000:  # Basic check that it's not an empty/error file
+            logger.info(f"Model weights already exist at {download_path} ({file_size} bytes)")
+            return download_path
+    
+    # Download URL (converted from Dropbox share link to direct download)
+    download_url = "https://www.dropbox.com/s/b7641ryzmkceoc9/pytorch_model_weights.pth?dl=1"
+    
+    try:
+        logger.info(f"Downloading model weights from {download_url}")
+        logger.info(f"Saving to {download_path}")
+        
+        # Download with progress
+        def progress_hook(block_num, block_size, total_size):
+            if total_size > 0:
+                percent = min(100, (block_num * block_size * 100) // total_size)
+                if block_num % 100 == 0 or percent >= 100:  # Update every 100 blocks or at completion
+                    logger.info(f"Download progress: {percent}%")
+        
+        urllib.request.urlretrieve(download_url, download_path, progress_hook)
+        
+        # Verify download
+        file_size = os.path.getsize(download_path)
+        logger.info(f"Download completed: {download_path} ({file_size} bytes)")
+        
+        if file_size < 1000:  # Likely an error page
+            raise ValueError("Downloaded file is too small, likely an error occurred")
+        
+        return download_path
+        
+    except Exception as e:
+        logger.error(f"Failed to download model weights: {str(e)}")
+        logger.error("Please manually download from: https://www.dropbox.com/s/b7641ryzmkceoc9/pytorch_model_weights.pth?dl=0")
+        raise
+
+
+# Example usage and testing
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test PyTorch model')
+    parser.add_argument('--weights_path', type=str, default='models/pytorch_model_weights.pth',
+                        help='Path to model weights')
+    parser.add_argument('--image_path', type=str,
+                        help='Path to test image')
+    parser.add_argument('--download', action='store_true',
+                        help='Download model weights if not found')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Download weights if requested or if they don't exist
+        if args.download or not os.path.exists(args.weights_path):
+            logger.info("Downloading model weights...")
+            download_model_weights(args.weights_path)
+        
+        # Test model creation using the exact code from the provided implementation
+        logger.info("Creating ImageNet classifier using exact implementation...")
+        mtailor = Classifier(BasicBlock, [2, 2, 2, 2])
+        
+        # Test with random input
+        logger.info("Testing with random input...")
+        test_input = torch.randn(1, 3, 224, 224)
+        output = mtailor(test_input)
+        logger.info(f"Output shape: {output.shape}")
+        logger.info(f"Output range: [{output.min().item():.3f}, {output.max().item():.3f}]")
+        
+        # If weights file exists, test loading and prediction
+        if os.path.exists(args.weights_path):
+            logger.info("Loading pretrained weights...")
+            try:
+                # Load using the exact method from provided code
+                mtailor.load_state_dict(torch.load(args.weights_path, map_location='cpu'))
+                mtailor.eval()
+                logger.info("Model loaded successfully!")
+                
+                # Test with provided images if they exist
+                test_images = ["sample_images/n01440764_tench.JPEG", "sample_images/n01667114_mud_turtle.JPEG"]
+                
+                if args.image_path:
+                    test_images = [args.image_path]
+                
+                for image_path in test_images:
+                    if os.path.exists(image_path):
+                        logger.info(f"Testing prediction on {image_path}...")
+                        try:
+                            img = Image.open(image_path).convert('RGB')
+                            inp = mtailor.preprocess_numpy(img).unsqueeze(0)
+                            res = mtailor.forward(inp)
+                            predicted_class = torch.argmax(res).item()
+                            logger.info(f"Predicted class: {predicted_class}")
+                            
+                            # Also test with our predict method
+                            class_id, confidence, probs = mtailor.predict(image_path)
+                            logger.info(f"Using predict method - Class: {class_id}, Confidence: {confidence:.4f}")
+                            
+                        except Exception as e:
+                            logger.error(f"Prediction failed for {image_path}: {str(e)}")
+                    else:
+                        logger.warning(f"Test image not found: {image_path}")
+                        
+            except Exception as e:
+                logger.error(f"Failed to load model: {str(e)}")
+        else:
+            logger.warning(f"Weights file not found: {args.weights_path}")
+            logger.info("Use --download flag to automatically download weights")
+            
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        exit(1)
