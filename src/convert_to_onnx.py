@@ -76,3 +76,25 @@ def convert_to_onnx(model_path="models/pytorch_model_weights.path",
     except Exception as e:
         print(f"Conversion error: {e}")
         return False
+
+def main():
+    """Main function for command line usage."""
+    parser = argparse.ArgumentParser(description='Convert PyTorch model to ONNX')
+    parser.add_argument('--model_path', default='models/pytorch_model_weights.pth',
+                       help='Path to PyTorch model weights')
+    parser.add_argument('--output_path', default='model_artifacts/classification_model.onnx',
+                       help='Output path for ONNX model')
+    
+    args = parser.parse_args()
+    
+    success = convert_to_onnx(args.model_path, args.output_path)
+    
+    if success:
+        print(f"ONNX model ready: {args.output_path}")
+    else:
+        print("Conversion failed!")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
