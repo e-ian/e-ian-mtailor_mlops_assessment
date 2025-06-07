@@ -65,7 +65,7 @@ def main():
     
     files = [
         (
-         "https://www.dropbox.com/s/b7641ryzmkceoc9/pytorch_model_weights.pth?dl=0",
+         "https://www.dropbox.com/s/b7641ryzmkceoc9/pytorch_model_weights.pth?dl=1",
          "models/pytorch_model_weights.pth", 40000000)
     ]
     
