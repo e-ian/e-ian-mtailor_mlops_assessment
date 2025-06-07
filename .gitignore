@@ -128,3 +128,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Model files (large - download via script)
+models/pytorch_model_weights.pth
+model_artifacts/*.onnx
+*.pth
+*.pt
