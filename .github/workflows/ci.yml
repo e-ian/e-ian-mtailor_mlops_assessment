@@ -27,7 +27,7 @@ jobs:
         python scripts/download_weights.py || echo "Using placeholders"
         python tests/test.py || echo "Some tests may fail without real model"
 
-  docker:
+  docker-build:
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -46,7 +46,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [test, docker]
+    needs: [test, docker-build]
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
