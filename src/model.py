@@ -1,8 +1,3 @@
-"""
-ONNX Model loading and prediction implementation.
-This module provides classes for loading ONNX models and making predictions.
-"""
-
 import onnxruntime as ort
 import numpy as np
 from PIL import Image
