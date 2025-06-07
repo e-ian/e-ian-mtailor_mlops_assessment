@@ -1,0 +1,30 @@
+[cerebrium]
+project = "p-eb5117e7"
+
+[cerebrium.deployment]
+name = "ml-classifier"
+python_version = "3.12"
+include = [
+    "main.py",
+    "src/",
+    "model_artifacts/",
+    "sample_images/",
+    "tests/",
+    "requirements.txt",
+    "Dockerfile",
+    "README.md"
+]
+exclude = [
+    ".*",
+    "__pycache__/**/*",
+    "*.pyc",
+    "**/__pycache__/**/*",
+    "**/*.pyc",
+    "**/venv/**/*",
+    "**/env/**/*",
+    ".git/**/*",
+    ".pytest_cache/**/*",
+    "*.log",
+    "test_results/**/*"
+]
+shell_commands = []
