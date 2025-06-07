@@ -11,26 +11,26 @@ sys.path.append('models')
 from pytorch_model import load_model
 
 
-def convert_to_onnx(model_path="models/pytorch_model_weights.path",
-                    output_path="model_artifacts/classification_model.onnx"):
+def convert_to_onnx(model_path="models/pytorch_model_weights.pth", 
+                   output_path="model_artifacts/classification_model.onnx"):
     """
-    Convert PyTorch model to ONNX format
-
+    Convert PyTorch model to ONNX format.
+    
     Args:
-        model_path: Path to Pytorch model weights
+        model_path: Path to PyTorch model weights
         output_path: Output path for ONNX model
-
+        
     Returns:
         bool: True if conversion successful
     """
     try:
-        print("loading PyTorch model from {model_path}")
+        print(f"Loading PyTorch model from {model_path}")
         pytorch_model = load_model(model_path)
         pytorch_model.eval()
-
-        # create output directory
-        os.makedirs(os.path.dirname(output_path, exist_ok=True))
-
+        
+        # Create output directory
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
         # Create dummy input for conversion
         dummy_input = torch.randn(1, 3, 224, 224)
         
@@ -76,6 +76,7 @@ def convert_to_onnx(model_path="models/pytorch_model_weights.path",
     except Exception as e:
         print(f"Conversion error: {e}")
         return False
+
 
 def main():
     """Main function for command line usage."""
